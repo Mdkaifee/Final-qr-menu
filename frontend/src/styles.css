@@ -555,6 +555,28 @@ button:disabled {
   top: 82px;
 }
 
+.cart-panel-head,
+.order-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cart-panel-head {
+  margin-bottom: 10px;
+}
+
+.cart-panel-head h2 {
+  margin: 0;
+}
+
+.order-meta-row {
+  justify-content: flex-start;
+  margin: 8px 0;
+}
+
 .cart-lines,
 .status-list,
 .stack-list,

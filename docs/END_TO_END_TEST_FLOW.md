@@ -74,7 +74,7 @@ Expected result:
 Important:
 
 - `bill_requested` should only appear after clicking `Request bill`.
-- If a guest adds another order after a previous bill request, the app now resets the session payment state back to `open`.
+- After final bill is requested, the session is locked for ordering. Any further order attempt is rejected.
 
 ## 4a. Stock-Limited Items
 
@@ -132,13 +132,16 @@ Expected result:
 
 ## 8. Request Bill
 
-1. On the guest page, click `Request bill`.
+1. Make sure the cart is empty. If there are unsent items, click `Send order` first.
+2. On the guest page, click `Request final bill`.
 2. Open Admin.
 
 Expected result:
 
 - Admin session payment state changes to `bill_requested`.
-- The session is still active until staff records payment.
+- The bill covers every order in the dining session, not one order at a time.
+- New orders are blocked for that session once the final bill has been requested.
+- The session is still active until guest online payment succeeds or staff records payment.
 
 ## 9. Close the Session - Two Paths
 
@@ -217,8 +220,8 @@ Cause:
 
 Expected behavior after the fix:
 
-- Creating a new order on an active `bill_requested` session resets payment state to `open`.
-- `bill_requested` should only be shown after the guest clicks `Request bill`.
+- `bill_requested` should only be shown after the guest clicks `Request final bill`.
+- Creating a new order on an active `bill_requested` session is rejected, because final bill has already started.
 
 ### Kitchen does not show an order
 

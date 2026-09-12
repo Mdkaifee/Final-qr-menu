@@ -37,6 +37,7 @@ safe default (Razorpay keys, VAPID keys) were added and came back empty.
 - Selected modifier snapshots stored with order items
 - Menu image upload endpoint and `/uploads` static serving added
 - Idempotency keys added for order submission
+- Final bill request now locks the active session for ordering and consolidates all session orders
 - Admin reports and CSV export endpoints added
 - Staff table/status filtering endpoints added
 - Last-active-admin protection added for staff user activation changes
@@ -51,6 +52,8 @@ safe default (Razorpay keys, VAPID keys) were added and came back empty.
 - Confirmation modal added for activate, deactivate, delete and mark-paid actions
 - Password visibility toggles added to login and staff user password fields
 - Session detail and billing controls added
+- Guest billing panel separates unsent cart total from full session total and shows payment state
+- Service order cards show payment state per order/session after serving
 - Guest modifier selection and idempotent submit behavior added
 - Staff filtering by table/status added
 - Richer order cards include table labels, notes and modifiers

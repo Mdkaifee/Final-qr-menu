@@ -3,7 +3,7 @@ import { CreditCard, Power, RefreshCw } from "lucide-react";
 import ConfirmModal from "../components/ConfirmModal.jsx";
 import LoginGate from "../components/LoginGate.jsx";
 import NotificationCenter from "../components/NotificationCenter.jsx";
-import { api, clearToken, getToken, money, wsUrl } from "../lib/api.js";
+import { api, clearToken, getToken, money, paymentStateLabel, wsUrl } from "../lib/api.js";
 import { useScrollReveal } from "../lib/reveal.js";
 
 const labels = {
@@ -171,13 +171,17 @@ export default function StaffPage({ mode }) {
             <div className="order-list">
               {visibleOrders.filter((order) => order.status === status).map((order) => {
                 const billableSession = canBill && status === "served" ? billableBySessionId.get(order.session_id) : null;
+                const paymentClass = order.session_payment_state === "paid" ? "pill" : order.session_payment_state === "bill_requested" ? "pill status-info" : "pill neutral";
                 return (
                   <div className="order-card" key={order.id}>
                     <div className="section-head compact-head">
                       <strong>{order.reference}</strong>
                       <span>{money(order.total_amount)}</span>
                     </div>
-                    <span className="pill">{order.table_label}</span>
+                    <div className="order-meta-row">
+                      <span className="pill">{order.table_label}</span>
+                      <span className={paymentClass}>Payment: {paymentStateLabel(order.session_payment_state)}</span>
+                    </div>
                     {order.items.map((item) => (
                       <p key={item.id}>
                         {item.quantity} x {item.name_snapshot}
@@ -195,6 +199,12 @@ export default function StaffPage({ mode }) {
                         <CreditCard size={16} />
                         Mark paid ({money(billableSession.total_amount)})
                       </button>
+                    )}
+                    {canBill && status === "served" && !billableSession && order.session_payment_state === "open" && (
+                      <p className="note-line">Waiting for guest to request the final bill.</p>
+                    )}
+                    {canBill && status === "served" && order.session_payment_state === "paid" && (
+                      <p className="note-line">Payment completed for this full session.</p>
                     )}
                   </div>
                 );

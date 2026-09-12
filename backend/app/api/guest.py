@@ -98,8 +98,13 @@ async def create_order(
     session = db.scalar(select(DiningSession).where(DiningSession.id == session_id))
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-    if session.status != "active" or session.payment_state not in {"open", "bill_requested"}:
+    if session.status != "active":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session is closed for ordering")
+    if session.payment_state != "open":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Final bill has already been requested for this visit",
+        )
 
     if idempotency_key:
         existing_order = db.scalar(
@@ -176,8 +181,6 @@ async def create_order(
             )
 
     order.total_amount = total
-    if session.payment_state == "bill_requested":
-        session.payment_state = "open"
 
     menu_changed = False
     for menu_item_id, quantity in requested_quantity.items():
@@ -240,6 +243,8 @@ def create_razorpay_order(session_id: int, db: Session = Depends(get_db)) -> Raz
     session = load_session_or_404(session_id, db)
     if session.status != "active":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session is already closed")
+    if session.payment_state != "bill_requested":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Request final bill before payment")
 
     total = sum((order.total_amount for order in session.orders), Decimal("0.00"))
     if total <= 0:

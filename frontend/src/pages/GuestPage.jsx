@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CheckCircle2, CreditCard, Minus, Plus, ReceiptText, Send } from "lucide-react";
 import NotificationCenter from "../components/NotificationCenter.jsx";
-import { api, money, wsUrl } from "../lib/api.js";
+import { api, money, paymentStateLabel, wsUrl } from "../lib/api.js";
 import { useScrollReveal } from "../lib/reveal.js";
 
 let razorpayScriptPromise = null;
@@ -76,8 +76,9 @@ export default function GuestPage() {
     .filter((line) => line.item);
   const total = cartLines.reduce((sum, line) => sum + getLineUnitPrice(line.item, line.modifier_option_ids) * line.quantity, 0);
   const sessionTotal = Number(session?.summary?.total_amount || 0);
-  const paymentState = session?.summary?.payment_state;
-  const canRequestBill = paymentState === "open" && sessionTotal > 0;
+  const paymentState = session?.summary?.payment_state || session?.payment_state;
+  const billingLocked = paymentState !== "open";
+  const canRequestBill = paymentState === "open" && sessionTotal > 0 && cartLines.length === 0;
 
   function selectOption(item, group, option) {
     setSelectedOptions((current) => {
@@ -123,6 +124,10 @@ export default function GuestPage() {
   }
 
   function addItem(item) {
+    if (billingLocked) {
+      setMessage("Final bill has already been requested for this visit.");
+      return;
+    }
     if (!validateRequiredModifiers(item)) return;
     const optionIds = getSelectedOptionIds(item);
     const key = getCartKey(item, optionIds);
@@ -153,7 +158,7 @@ export default function GuestPage() {
   }
 
   async function submitOrder() {
-    if (!session?.session_id || cartLines.length === 0 || submitting) return;
+    if (!session?.session_id || cartLines.length === 0 || submitting || billingLocked) return;
     setSubmitting(true);
     try {
       const order = await api(`/api/guest/sessions/${session.session_id}/orders`, {
@@ -183,9 +188,19 @@ export default function GuestPage() {
 
   async function requestBill() {
     if (!session?.session_id) return;
-    const summary = await api(`/api/guest/sessions/${session.session_id}/bill-request`, { method: "POST" });
-    setSession((current) => ({ ...current, summary }));
-    setMessage("Bill request sent to service staff.");
+    if (cartLines.length > 0) {
+      setMessage("Send the current order first, then request the final bill once.");
+      return;
+    }
+    try {
+      const summary = await api(`/api/guest/sessions/${session.session_id}/bill-request`, { method: "POST" });
+      setSession((current) => ({ ...current, payment_state: summary.payment_state, summary }));
+      setCart({});
+      setNote("");
+      setMessage("Final bill request sent. This covers every order in this visit.");
+    } catch (error) {
+      setMessage(error.message);
+    }
   }
 
   async function payOnline() {
@@ -258,12 +273,14 @@ export default function GuestPage() {
                   .filter((line) => line.menu_item_id === item.id)
                   .reduce((sum, line) => sum + line.quantity, 0);
                 const atStockLimit = item.stock_quantity !== null && item.stock_quantity !== undefined && totalInCart >= item.stock_quantity;
+                const cannotOrder = !item.is_available || atStockLimit || billingLocked;
                 return (
-                  <article className={!item.is_available ? "disabled" : ""} key={item.id}>
+                  <article className={cannotOrder ? "disabled" : ""} key={item.id}>
                     <div>
                       <h3>{item.name}</h3>
                       <p>{item.description}</p>
                       <strong>{money(item.price)}</strong>
+                      {billingLocked && <span className="stock-note">Final bill requested</span>}
                       {item.is_available && item.stock_quantity !== null && item.stock_quantity !== undefined && (
                         <span className="stock-note">{Math.max(item.stock_quantity - totalInCart, 0)} left</span>
                       )}
@@ -280,7 +297,7 @@ export default function GuestPage() {
                         </button>
                       )}
                       {quantity > 0 && <span className="stepper-count">{quantity}</span>}
-                      <button onClick={() => addItem(item)} disabled={!item.is_available || atStockLimit} aria-label={`Add ${item.name}`} type="button">
+                      <button onClick={() => addItem(item)} disabled={cannotOrder} aria-label={`Add ${item.name}`} type="button">
                         <Plus size={16} />
                       </button>
                     </div>
@@ -293,9 +310,14 @@ export default function GuestPage() {
       </section>
 
       <aside className="cart-panel focus-in delay-1">
-        <h2>Your order</h2>
+        <div className="cart-panel-head">
+          <h2>Your order</h2>
+          <span className={paymentState === "paid" ? "pill" : paymentState === "bill_requested" ? "pill status-info" : "pill neutral"}>
+            {paymentStateLabel(paymentState)}
+          </span>
+        </div>
         {cartLines.length === 0 ? (
-          <p className="muted">Add items from the menu.</p>
+          <p className="muted">{billingLocked ? "Ordering is closed for this visit." : "Add items from the menu."}</p>
         ) : (
           <div className="cart-lines">
             {cartLines.map((line) => (
@@ -312,14 +334,14 @@ export default function GuestPage() {
             ))}
           </div>
         )}
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Order note" />
+        <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Order note" disabled={billingLocked} />
         {cartLines.length > 0 && (
           <div className="cart-total">
             <span>This order</span>
             <strong>{money(total)}</strong>
           </div>
         )}
-        <button className="button primary wide" onClick={submitOrder} disabled={!cartLines.length || submitting}>
+        <button className="button primary wide" onClick={submitOrder} disabled={!cartLines.length || submitting || billingLocked}>
           <Send size={18} />
           {submitting ? "Sending..." : "Send order"}
         </button>
@@ -330,15 +352,19 @@ export default function GuestPage() {
             <strong>{money(sessionTotal)}</strong>
           </div>
           <p className="field-help">
-            {paymentState === "bill_requested"
-              ? "Bill requested — this covers every order from this visit, all at once."
-              : "You can order as many more times as you like. Request the bill just once, when you're completely done — it will cover everything above, not just your last order."}
+            {paymentState === "paid"
+              ? "Payment is complete. Thank you."
+              : paymentState === "bill_requested"
+                ? "Final bill requested — this covers every order from this visit, all at once. New ordering is now closed for this session."
+                : cartLines.length > 0
+                  ? "Send the current order before requesting the final bill."
+                  : "You can order as many more times as you like. Request the final bill once, when you're completely done."}
           </p>
           <button
             className="button secondary wide"
             onClick={requestBill}
             disabled={!canRequestBill}
-            title={canRequestBill ? "" : "Nothing to bill yet — add and send an order first."}
+            title={canRequestBill ? "" : cartLines.length > 0 ? "Send the current order first." : "Nothing to bill yet — add and send an order first."}
           >
             <ReceiptText size={18} />
             Request final bill
