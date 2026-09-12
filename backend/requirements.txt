@@ -1,0 +1,15 @@
+fastapi==0.117.1
+uvicorn[standard]==0.36.0
+sqlalchemy==2.0.43
+psycopg[binary]==3.2.10
+pydantic-settings==2.10.1
+python-multipart==0.0.20
+PyJWT==2.10.1
+redis==6.4.0
+email-validator==2.3.0
+alembic==1.16.5
+razorpay==1.4.2
+pywebpush==2.0.3
+# razorpay 1.4.2 imports the deprecated pkg_resources module, which newer
+# setuptools releases no longer bundle - pin to a version that still ships it.
+setuptools==75.6.0
