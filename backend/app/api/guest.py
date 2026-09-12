@@ -221,6 +221,12 @@ async def request_bill(session_id: int, db: Session = Depends(get_db)) -> Sessio
     total = sum((order.total_amount for order in session.orders), Decimal("0.00"))
     if total <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nothing to bill yet")
+    unserved_orders = [order for order in session.orders if order.status != "served"]
+    if unserved_orders:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Request the final bill after all orders are served.",
+        )
 
     session.payment_state = "bill_requested"
     db.commit()

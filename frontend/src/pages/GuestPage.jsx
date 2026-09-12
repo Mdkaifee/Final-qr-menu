@@ -78,7 +78,11 @@ export default function GuestPage() {
   const sessionTotal = Number(session?.summary?.total_amount || 0);
   const paymentState = session?.summary?.payment_state || session?.payment_state;
   const billingLocked = paymentState !== "open";
-  const canRequestBill = paymentState === "open" && sessionTotal > 0 && cartLines.length === 0;
+  const sessionOrders = session?.summary?.orders || [];
+  const pendingOrders = sessionOrders.filter((order) => order.status !== "served");
+  const allOrdersServed = sessionOrders.length > 0 && pendingOrders.length === 0;
+  const canRequestBill = paymentState === "open" && sessionTotal > 0 && cartLines.length === 0 && allOrdersServed;
+  const billButtonHint = getBillButtonHint({ canRequestBill, cartLines, sessionTotal, pendingOrders });
 
   function selectOption(item, group, option) {
     setSelectedOptions((current) => {
@@ -358,17 +362,20 @@ export default function GuestPage() {
                 ? "Final bill requested — this covers every order from this visit, all at once. New ordering is now closed for this session."
                 : cartLines.length > 0
                   ? "Send the current order before requesting the final bill."
-                  : "You can order as many more times as you like. Request the final bill once, when you're completely done."}
+                  : allOrdersServed
+                    ? "All orders are served. You can request the final bill when you are done ordering."
+                    : "Request final bill will unlock after every order has been served."}
           </p>
           <button
             className="button secondary wide"
             onClick={requestBill}
             disabled={!canRequestBill}
-            title={canRequestBill ? "" : cartLines.length > 0 ? "Send the current order first." : "Nothing to bill yet — add and send an order first."}
+            title={billButtonHint}
           >
             <ReceiptText size={18} />
             Request final bill
           </button>
+          {!canRequestBill && !billingLocked && billButtonHint && <p className="note-line">{billButtonHint}</p>}
           {paymentState === "bill_requested" && (
             <button className="button primary wide" onClick={payOnline} disabled={payingOnline} type="button">
               <CreditCard size={18} />
@@ -431,6 +438,16 @@ function getOptions(item, optionIds) {
 function formatSelectedOptions(item, optionIds) {
   const names = getOptions(item, optionIds).map((option) => option.name);
   return names.length ? names.join(", ") : "No modifiers";
+}
+
+function getBillButtonHint({ canRequestBill, cartLines, sessionTotal, pendingOrders }) {
+  if (canRequestBill) return "";
+  if (cartLines.length > 0) return "Send the current order first.";
+  if (sessionTotal <= 0) return "Nothing to bill yet — add and send an order first.";
+  if (pendingOrders.length > 0) {
+    return `${pendingOrders.length} order${pendingOrders.length === 1 ? "" : "s"} still need${pendingOrders.length === 1 ? "s" : ""} to be served before final bill.`;
+  }
+  return "";
 }
 
 const ORDER_STATUS_PILL = {

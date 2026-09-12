@@ -74,6 +74,7 @@ Expected result:
 Important:
 
 - `bill_requested` should only appear after clicking `Request bill`.
+- `Request final bill` stays disabled while any order is not yet `served`.
 - After final bill is requested, the session is locked for ordering. Any further order attempt is rejected.
 
 ## 4a. Stock-Limited Items
@@ -133,13 +134,15 @@ Expected result:
 ## 8. Request Bill
 
 1. Make sure the cart is empty. If there are unsent items, click `Send order` first.
-2. On the guest page, click `Request final bill`.
-2. Open Admin.
+2. Make sure every order in `Order status` shows `served`.
+3. On the guest page, click `Request final bill`.
+4. Open Admin.
 
 Expected result:
 
 - Admin session payment state changes to `bill_requested`.
 - The bill covers every order in the dining session, not one order at a time.
+- The guest cannot request the final bill while any order is still placed, confirmed, preparing, ready or ready to serve.
 - New orders are blocked for that session once the final bill has been requested.
 - The session is still active until guest online payment succeeds or staff records payment.
 
@@ -246,7 +249,7 @@ Check:
 - Kitchen receives and updates the order.
 - Service receives ready orders and marks served.
 - Guest can place multiple orders in one active visit.
-- Bill request appears only after guest requests bill.
+- Bill request appears only after guest requests bill and every order is served.
 - Admin can mark session paid, or guest can pay online via Razorpay with signature verification.
 - Paid/completed sessions reject further ordering.
 - Reports and item sales update from real orders.
